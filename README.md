@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/alexeyev/finite-state-transducers-lean/actions/workflows/ci.yml/badge.svg)](https://github.com/alexeyev/finite-state-transducers-lean/actions/workflows/ci.yml)
 [![Lean 4](https://img.shields.io/badge/Lean-v4.30.0-blue.svg)](https://leanprover.github.io/)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-green.svg)](LICENSE)
 
 A self-contained, machine-checked development of the core theory of **finite-state
 transducers (FSTs)** and the **rational relations** they realize — formalized in
