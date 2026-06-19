@@ -1,0 +1,60 @@
+name: Repo hygiene
+
+# Fast, dependency-free checks on the repository contents themselves:
+# balanced namespaces, no trailing whitespace, no tabs, declared invariants
+# in the README still hold. These run in seconds and complement the full
+# Lean build in ci.yml.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hygiene:
+    name: Source & repo hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Balanced `namespace FST` / `end FST`
+        run: |
+          opens=$(grep -c '^namespace FST' FST.lean || true)
+          closes=$(grep -c '^end FST' FST.lean || true)
+          echo "namespace FST: $opens, end FST: $closes"
+          if [ "$opens" != "$closes" ]; then
+            echo "::error::Unbalanced namespace blocks ($opens opens vs $closes closes)."
+            exit 1
+          fi
+          echo "OK: namespace blocks balanced."
+
+      - name: No tab characters in source
+        run: |
+          # Match the actual tab byte (0x09), not a literal backslash-t.
+          if grep -nP '\x09' FST.lean; then
+            echo "::error::Tab characters found above; the source uses spaces only."
+            exit 1
+          fi
+          echo "OK: no tabs."
+
+      - name: No trailing whitespace in source
+        run: |
+          if grep -nE ' +$' FST.lean; then
+            echo "::error::Trailing whitespace found above."
+            exit 1
+          fi
+          echo "OK: no trailing whitespace."
+
+      - name: Source ends with a newline
+        run: |
+          if [ -n "$(tail -c1 FST.lean)" ]; then
+            echo "::error::FST.lean does not end with a newline."
+            exit 1
+          fi
+          echo "OK: trailing newline present."

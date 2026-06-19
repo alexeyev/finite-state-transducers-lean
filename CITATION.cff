@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+title: "Finite-State Transducers in Lean 4"
+message: "If you use this software or build on the proofs, please cite it using the metadata below."
+type: software
+authors:
+  - name: "Claude, Opus Models Family"
+  - family-names: Alekseev
+    given-names: Anton
+abstract: >-
+  A self-contained, machine-checked development of the core theory of
+  finite-state transducers and the rational relations they realize, formalized
+  in Lean 4 with no dependency on Mathlib. Includes closure properties, both
+  directions of Kleene's theorem, determinization and Myhill-Nerode for DFAs,
+  the twinning property, the Choffrut subsequentiality characterization in both
+  directions, and an effective (executable) decision criterion for twinning.
+  Every result is proved with no sorry and depends only on propext and
+  Quot.sound (never Classical.choice).
+keywords:
+  - Lean 4
+  - formal verification
+  - finite-state transducers
+  - rational relations
+  - automata theory
+  - Choffrut's theorem
+  - twinning property
+  - subsequential transducers
+license: Beerware License (Revision 42)
+repository-code: "https://github.com/alexeyev/finite-state-transducers-lean"
+version: "1.0.0"
+date-released: "2026-06-19"

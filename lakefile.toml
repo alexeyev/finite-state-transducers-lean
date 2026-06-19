@@ -1,0 +1,8 @@
+name = "fst"
+defaultTargets = ["FST"]
+
+# A self-contained Lean 4 library of finite-state transducer theory.
+# No dependencies (Mathlib is intentionally NOT required).
+
+[[lean_lib]]
+name = "FST"

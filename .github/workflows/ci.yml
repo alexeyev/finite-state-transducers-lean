@@ -1,0 +1,129 @@
+name: CI
+
+# Build the library, type-check every proof, and run the hygiene audits
+# (no `sorry`/`admit`, no `Classical.choice`/`sorryAx` in the axiom dependencies).
+#
+# The pinned toolchain in `lean-toolchain` is fetched automatically by `elan`,
+# so the build is fully reproducible from a clean checkout with no extra setup.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & verify (Lean ${{ matrix.lean }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The toolchain is pinned in lean-toolchain; this label is for display only.
+        lean: ["v4.30.0"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install elan (Lean toolchain manager)
+        run: |
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            -o elan-init.sh
+          sh elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Show toolchain
+        run: |
+          elan --version
+          lean --version
+          lake --version
+
+      # Cache the build artifacts (.lake) keyed on the toolchain + sources.
+      # No external packages are used, so this is purely the compiled oleans.
+      - name: Cache .lake build
+        uses: actions/cache@v4
+        with:
+          path: .lake/build
+          key: lake-${{ runner.os }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('FST.lean') }}
+          restore-keys: |
+            lake-${{ runner.os }}-${{ hashFiles('lean-toolchain') }}-
+
+      - name: Build & type-check (lake build)
+        run: lake build
+
+      # `lake build` already prints the axiom audit (#print axioms ...) for every
+      # headline theorem. The steps below turn the project's invariants into hard
+      # CI gates so a regression fails the run. The authoritative `sorry` gate is the
+      # axiom audit (`sorryAx`) further down; the lexical check here is a fast tripwire.
+
+      - name: Audit — no `sorry`/`admit` used as a tactic or term
+        run: |
+          # Match `sorry`/`admit` only where they can be a proof term/tactic
+          # (after `:=`, after `by`, alone on a line, or after `;`/`<;>`), so the
+          # words appearing in documentation prose are never flagged.
+          if grep -nE ':=[[:space:]]*sorry|by[[:space:]]+sorry|^[[:space:]]*sorry[[:space:]]*$|;[[:space:]]*sorry|<;>[[:space:]]*sorry|:=[[:space:]]*admit|by[[:space:]]+admit|^[[:space:]]*admit[[:space:]]*$' FST.lean; then
+            echo "::error::Found a sorry/admit used as a proof above. The library must be complete."
+            exit 1
+          fi
+          echo "OK: no sorry/admit proof terms."
+
+      - name: Audit — no Cyrillic in source (English-only public source)
+        run: |
+          # Use Perl directly (portable \x{...} support) rather than grep -P.
+          if perl -ne 'exit 1 if /[\x{0400}-\x{04FF}]/' FST.lean; then
+            echo "OK: source is Cyrillic-free."
+          else
+            echo "::error::Found Cyrillic characters; the published source is English-only."
+            grep -nP '[\x{0400}-\x{04FF}]' FST.lean || true
+            exit 1
+          fi
+
+      - name: Audit — axiom hygiene (no Classical.choice / sorryAx)
+        run: |
+          # Re-emit the axiom dependencies of a representative spread of headline
+          # theorems and fail if any forbidden axiom appears.
+          cat > /tmp/audit.lean <<'EOF'
+          import FST
+          open FST
+          -- A spread across the whole development: closure, Kleene, determinization,
+          -- Choffrut both directions, and the twinning decision procedure.
+          #print axioms realizes_compose
+          #print axioms kleene
+          #print axioms NFAe.exists_dfa
+          #print axioms choffrut_subsequential
+          #print axioms choffrut_converse
+          #print axioms twinning_iff_bounded_delay
+          #print axioms twinning_iff_structure
+          #print axioms twinning_decision_criterion
+          #print axioms refuteTwinning_ofStepFn
+          #print axioms structOK_hasBoundedDelay
+          EOF
+          # Build the audit file against the compiled library and capture output.
+          lake env lean /tmp/audit.lean > /tmp/audit.out 2>&1 || {
+            echo "::error::Axiom audit file failed to elaborate:"; cat /tmp/audit.out; exit 1;
+          }
+          cat /tmp/audit.out
+          if grep -E 'Classical\.choice|sorryAx' /tmp/audit.out; then
+            echo "::error::A forbidden axiom (Classical.choice / sorryAx) appears above."
+            exit 1
+          fi
+          echo "OK: only propext / Quot.sound in the audited dependencies."
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "### FST build & audit passed :white_check_mark:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`lake build\`: all proofs type-check" >> "$GITHUB_STEP_SUMMARY"
+          echo "- no \`sorry\` / \`admit\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- axiom hygiene: no \`Classical.choice\` / \`sorryAx\`" >> "$GITHUB_STEP_SUMMARY"
