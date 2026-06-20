@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/alexeyev/finite-state-transducers-lean/actions/workflows/ci.yml/badge.svg)](https://github.com/alexeyev/finite-state-transducers-lean/actions/workflows/ci.yml)
 [![Lean 4](https://img.shields.io/badge/Lean-v4.30.0-blue.svg)](https://leanprover.github.io/)
+[![License: Beerware](https://img.shields.io/badge/License-Beerware-yellow.svg)](LICENSE)
 
 A self-contained, machine-checked development of the core theory of **finite-state
 transducers (FSTs)** and the **rational relations** they realize — formalized in
@@ -22,6 +23,9 @@ in particular **never on `Classical.choice` or `sorryAx`**.
 | --- | --- |
 | Closure under union, inverse, composition | `realizes_union`, `realizes_inv`, `realizes_compose` |
 | Closure under concatenation and Kleene star | `realizes_concat`, `realizes_star` |
+| **Rational relations form a monoid under composition:** associativity, the diagonal as two-sided unit, the unit is itself rational | `Rcomp_assoc`, `Rid_comp_left`, `Rid_comp_right`, `Rid_rational` |
+| **...and an idempotent semiring** with union: union is commutative/idempotent with the empty relation as unit, composition distributes over union, the empty relation absorbs | `RUnion_assoc`, `RUnion_comm`, `RUnion_idem`, `Rcomp_union_left`, `Rcomp_union_right`, `Rzero_comp_left` |
+| **Kleene algebra:** the composition star `R*` with both unfolding laws and both least-fixpoint induction laws; monotone, idempotent. (Honest caveat: rational relations are *not* closed under this star — documented, not claimed) | `Rstar_unfold_left`, `Rstar_unfold_right`, `Rstar_induction_left`, `Rstar_induction_right`, `Rstar_mono`, `Rstar_idem` |
 | Domain and range are recognizable | `accepts_dom`, `accepts_ran` |
 | Restriction to a regular domain/range; image and preimage of a regular language are regular | `rational_restrict`, `diag`, `image_recognizable`, `preimage_recognizable` |
 | Nivat / pair-alphabet characterization | `nivat` |
@@ -120,6 +124,9 @@ in particular **never on `Classical.choice` or `sorryAx`**.
 | **Executable twinning refutation**: one failing loop refutes; the `#eval`-able form over step functions | `refuteTwinning`, `refuteTwinning_ofStepFn` |
 | **Finiteness reduction** (the deferred hard direction): loop removal from one loop's structural data; `structOK` everywhere ⟹ bounded delay `2N²` | `delay_loop_removal_struct`, `structOK_pdist_bound`, `structOK_hasBoundedDelay` |
 | **The twinning decision criterion** (real-time, `Fin N`): complete two-sided equivalence, both directions finitely grounded; metric = effective | `twinning_decision_criterion`, `structOK_iff_boundedDelay`, `certifyTwinning` |
+| **Identity transducer** realizes the diagonal; **Mealy** (letter-to-letter) subclass: length-preserving, functional, embeds into the general model | `idT_realizes`, `Mealy.realizes_length`, `Mealy.realizes_functional`, `Mealy.toTransducer_realizes` |
+| **Mealy closure under composition** and **causality** (online property: output on a prefix is a prefix of the output) | `Mealy.comp_realizes`, `Mealy.run_append`, `Mealy.run_prefix`, `Mealy.realizes_prefix` |
+| **Mealy minimization:** Myhill–Nerode equivalence as a coinductive bisimulation; the explicit minimal machine, same relation, provably reduced | `Mealy.StateEquiv.step`, `Mealy.StateEquiv.of_step`, `Mealy.minimal_realizes`, `Mealy.minimal_reduced` |
 
 Both directions of **Kleene's theorem for rational relations** are proved, and the
 capstone `kleene` states them together at the structural level: a word relation is
@@ -204,7 +211,7 @@ lean FST.lean
 This is a verification artifact, so its trust basis is stated explicitly:
 
 * No `sorry`, no `admit`, and no result depends on `sorryAx` (verified across all
-  ~520 declarations, ~9,600 lines).
+  ~630 declarations, ~10,700 lines).
 * The only axioms used are `propext` (propositional extensionality) and
   `Quot.sound` (soundness of quotients) — both standard and part of Lean's core
   logic. `Classical.choice` is **not** used anywhere. Keeping this property was a
@@ -237,14 +244,40 @@ finite-state transducers: *subsequential ⟺ twinning ⟺ bounded delay*, all th
 also shown equivalent to the **effective** boolean criterion (see "The twinning
 decision procedure" above).
 
+### The letter-to-letter (Mealy) subclass and minimization
+
+The library develops the **Mealy machine** — the deterministic *letter-to-letter*
+(length-preserving) transducer — as a subclass with its own clean theory
+(namespace `Mealy`). Highlights:
+
+* **Semantics and basic invariants:** `run`, length preservation
+  (`run_length_preserving`), functionality (`realizes_functional`), and the
+  embedding into the general relational model (`toTransducer_realizes`).
+* **Closure under composition:** the product machine `comp` realizes the
+  relational composition of the two transductions (`comp_realizes`).
+* **Causality / the online property:** `run_append` (the monoid-action law) and
+  `run_prefix` / `realizes_prefix` — the output on `x` is a *prefix* of the output
+  on any extension, so a Mealy machine commits to each output letter immediately
+  and never revises it. This is what makes it a *sequential* function.
+* **Behavioural equivalence and minimization:** `StateEquiv` (the Myhill–Nerode
+  equivalence), characterized coinductively as the greatest bisimulation
+  (`StateEquiv.step` / `of_step`), and the explicit **minimal (Nerode) machine**
+  `minimal` whose state space is the behaviour function space. It realizes the
+  same relation (`minimal_realizes`) and is provably *reduced* — distinct
+  reachable states have distinct behaviours (`minimal_reduced`).
+
+So minimization, listed below as out of scope for the general subsequential case,
+*is* fully formalized for the letter-to-letter subclass.
+
 Still genuinely **not** in scope: decidability of *equivalence* of two
-subsequential transducers, *minimization* (a canonical minimal subsequential
-form), and the more general two-way / streaming / weighted transducer models. The
-*positive* twinning decision is reduced to finitely checkable data
-(`twinning_decision_criterion`) but is not packaged as a single executable
-`Decidable Twinning` instance — that wiring (enumerating reachable state pairs and
-their primitive loops, then folding `structOK` over them) is a well-scoped
-remaining step, distinct from the mathematics, which is complete.
+subsequential transducers, *minimization* for the general subsequential case (the
+Mealy subclass is done — see above), and the more general two-way / streaming /
+weighted transducer models. The *positive* twinning decision is reduced to
+finitely checkable data (`twinning_decision_criterion`) but is not packaged as a
+single executable `Decidable Twinning` instance — that wiring (enumerating
+reachable state pairs and their primitive loops, then folding `structOK` over
+them) is a well-scoped remaining step, distinct from the mathematics, which is
+complete.
 
 ### Choffrut for input-ε transducers
 
@@ -279,10 +312,11 @@ FST.lean                      the library (single self-contained module)
 lakefile.toml                 Lake package manifest (library target `FST`)
 lean-toolchain                pinned Lean/Lake version
 check.sh                      convenience build-and-report script
+scripts/conjecture_miner.lean property-based conjecture miner (discovery tool)
 README.md                     this file
 CONTRIBUTING.md               project invariants and how to verify a change
 CITATION.cff                  citation metadata
-LICENSE                       Apache License 2.0
+LICENSE                       Beerware License (Revision 42)
 .github/workflows/ci.yml      build, type-check, and axiom-hygiene audit
 .github/workflows/hygiene.yml fast source/repo hygiene checks
 .github/dependabot.yml        keeps the GitHub Actions versions current
@@ -300,7 +334,7 @@ sidebar). A BibTeX entry:
   author       = {Claude, Opus Models Family and Alekseev, Anton},
   year         = {2026},
   version      = {1.0.0},
-  license      = {MIT},
+  license      = {Beerware},
   url          = {https://github.com/alexeyev/finite-state-transducers-lean}
 }
 ```

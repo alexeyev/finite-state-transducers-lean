@@ -24,7 +24,7 @@ keywords:
   - Choffrut's theorem
   - twinning property
   - subsequential transducers
-license: Beerware License (Revision 42)
+license: Beerware
 repository-code: "https://github.com/alexeyev/finite-state-transducers-lean"
 version: "1.0.0"
 date-released: "2026-06-19"

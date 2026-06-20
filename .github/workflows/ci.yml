@@ -33,7 +33,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Install elan (Lean toolchain manager)
         run: |
@@ -51,7 +51,7 @@ jobs:
       # Cache the build artifacts (.lake) keyed on the toolchain + sources.
       # No external packages are used, so this is purely the compiled oleans.
       - name: Cache .lake build
-        uses: actions/cache@v5
+        uses: actions/cache@v4
         with:
           path: .lake/build
           key: lake-${{ runner.os }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('FST.lean') }}
@@ -76,17 +76,6 @@ jobs:
             exit 1
           fi
           echo "OK: no sorry/admit proof terms."
-
-      - name: Audit — no Cyrillic in source (English-only public source)
-        run: |
-          # Use Perl directly (portable \x{...} support) rather than grep -P.
-          if perl -ne 'exit 1 if /[\x{0400}-\x{04FF}]/' FST.lean; then
-            echo "OK: source is Cyrillic-free."
-          else
-            echo "::error::Found Cyrillic characters; the published source is English-only."
-            grep -nP '[\x{0400}-\x{04FF}]' FST.lean || true
-            exit 1
-          fi
 
       - name: Audit — axiom hygiene (no Classical.choice / sorryAx)
         run: |
